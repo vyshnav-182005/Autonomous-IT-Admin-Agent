@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Users — OpsPilot Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 data-testid="page-title">User Management</h1>
+        <p class="page-subtitle">Manage all users in the system</p>
+    </div>
+    <a href="/create-user" class="btn btn-primary" data-testid="create-user-btn">
+        <span>➕</span> Create User
+    </a>
+</div>
+
+<!-- Search Bar -->
+<div class="search-bar" data-testid="search-bar">
+    <form method="get" action="/users" class="search-form">
+        <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input
+                type="text"
+                name="q"
+                placeholder="Search by name or email..."
+                value="{{ search_query }}"
+                class="search-input"
+                data-testid="search-input"
+                autocomplete="off"
+            >
+        </div>
+        <button type="submit" class="btn btn-secondary" data-testid="search-btn">Search</button>
+        {% if search_query %}
+        <a href="/users" class="btn btn-ghost" data-testid="clear-search-btn">Clear</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Users Table -->
+<div class="table-wrapper">
+    <table class="data-table" data-testid="users-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if users %}
+                {% for user in users %}
+                <tr class="table-row" data-testid="user-row-{{ user.email }}">
+                    <td class="cell-name">
+                        <div class="user-avatar">{{ user.name[0] }}</div>
+                        <span>{{ user.name }}</span>
+                    </td>
+                    <td class="cell-email" data-testid="user-email-{{ user.email }}">{{ user.email }}</td>
+                    <td>
+                        <span class="badge badge-{{ user.role | lower }}" data-testid="user-role-{{ user.email }}">
+                            {{ user.role }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="status-dot status-{{ user.status | lower }}"></span>
+                        <span data-testid="user-status-{{ user.email }}">{{ user.status }}</span>
+                    </td>
+                    <td class="cell-actions">
+                        <form method="post" action="/reset-password/{{ user.id }}" class="inline-form">
+                            <button
+                                type="submit"
+                                class="btn btn-sm btn-warning"
+                                data-testid="reset-btn-{{ user.email }}"
+                                data-confirm="Are you sure you want to reset the password for {{ user.name }}?"
+                            >
+                                🔑 Reset Password
+                            </button>
+                        </form>
+                        {% if user.status == 'Active' %}
+                        <form method="post" action="/disable-user/{{ user.id }}" class="inline-form">
+                            <button
+                                type="submit"
+                                class="btn btn-sm btn-danger"
+                                data-testid="disable-btn-{{ user.email }}"
+                                data-confirm="Are you sure you want to disable {{ user.name }}? This action cannot be undone."
+                            >
+                                🚫 Disable
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="btn btn-sm btn-disabled" data-testid="disabled-label-{{ user.email }}">Disabled</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="5" class="empty-state">
+                        <div class="empty-icon">👤</div>
+                        <p>No users found{% if search_query %} matching "{{ search_query }}"{% endif %}</p>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+
+<div class="table-footer">
+    <span class="user-count" data-testid="user-count">{{ users | length }} user{{ 's' if users | length != 1 else '' }} total</span>
+</div>
+{% endblock %}

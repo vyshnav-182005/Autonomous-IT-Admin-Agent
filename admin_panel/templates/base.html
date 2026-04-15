@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="OpsPilot AI - IT Administration Dashboard">
+    <title>{% block title %}OpsPilot Admin{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" data-testid="navbar">
+        <div class="nav-brand">
+            <span class="nav-logo">⚡</span>
+            <span class="nav-title">OpsPilot</span>
+            <span class="nav-badge">Admin</span>
+        </div>
+        <div class="nav-links">
+            <a href="/users" class="nav-link {% if request.url.path == '/users' %}active{% endif %}" data-testid="nav-users">
+                <span class="nav-icon">👥</span> Users
+            </a>
+            <a href="/create-user" class="nav-link {% if request.url.path == '/create-user' %}active{% endif %}" data-testid="nav-create-user">
+                <span class="nav-icon">➕</span> Create User
+            </a>
+            <a href="/logs" class="nav-link {% if request.url.path == '/logs' %}active{% endif %}" data-testid="nav-logs">
+                <span class="nav-icon">📋</span> Logs
+            </a>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% if message %}
+    <div class="flash-message flash-{{ msg_type }}" data-testid="flash-message" id="flash-msg">
+        <span class="flash-icon">
+            {% if msg_type == 'success' %}✅{% elif msg_type == 'error' %}❌{% else %}ℹ️{% endif %}
+        </span>
+        <span class="flash-text">{{ message }}</span>
+        <button class="flash-close" onclick="this.parentElement.remove()" data-testid="flash-close">&times;</button>
+    </div>
+    {% endif %}
+
+    <!-- Main Content -->
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <p>OpsPilot AI &mdash; Autonomous IT Admin Agent &copy; 2026</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

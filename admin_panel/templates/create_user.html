@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Create User — OpsPilot Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 data-testid="page-title">Create New User</h1>
+        <p class="page-subtitle">Add a new user to the system</p>
+    </div>
+    <a href="/users" class="btn btn-ghost" data-testid="back-to-users-btn">← Back to Users</a>
+</div>
+
+<div class="form-card">
+    <form method="post" action="/create-user" class="create-form" data-testid="create-user-form" id="create-user-form">
+        <!-- Name -->
+        <div class="form-group">
+            <label for="name" class="form-label">Full Name</label>
+            <input
+                type="text"
+                id="name"
+                name="name"
+                class="form-input"
+                placeholder="e.g. John Doe"
+                required
+                data-testid="name-input"
+                autocomplete="off"
+            >
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+            <label for="email" class="form-label">Email Address</label>
+            <input
+                type="email"
+                id="email"
+                name="email"
+                class="form-input"
+                placeholder="e.g. john@company.com"
+                required
+                data-testid="email-input"
+                autocomplete="off"
+            >
+        </div>
+
+        <!-- Role -->
+        <div class="form-group">
+            <label for="role" class="form-label">Role</label>
+            <select id="role" name="role" class="form-input form-select" required data-testid="role-select">
+                <option value="Employee">Employee</option>
+                <option value="Admin">Admin</option>
+            </select>
+        </div>
+
+        <!-- Submit -->
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg" data-testid="submit-create-user">
+                ✨ Create User
+            </button>
+            <a href="/users" class="btn btn-ghost btn-lg">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

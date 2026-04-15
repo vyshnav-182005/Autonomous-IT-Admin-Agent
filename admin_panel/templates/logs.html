@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Action Logs — OpsPilot Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 data-testid="page-title">Action Logs</h1>
+        <p class="page-subtitle">Recent actions performed on user accounts</p>
+    </div>
+</div>
+
+<div class="table-wrapper">
+    <table class="data-table" data-testid="logs-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% if logs %}
+                {% for log in logs %}
+                <tr class="table-row">
+                    <td class="cell-timestamp">{{ log.timestamp }}</td>
+                    <td>
+                        <span class="badge badge-action-{{ log.action }}">{{ log.action }}</span>
+                    </td>
+                    <td class="cell-email">{{ log.target_email }}</td>
+                    <td>{{ log.details }}</td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="4" class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <p>No actions logged yet</p>
+                    </td>
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
