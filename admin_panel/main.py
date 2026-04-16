@@ -5,16 +5,28 @@ FastAPI application serving the admin panel with Jinja2 templates.
 
 import sys
 import os
+import logging
+import asyncio
 
 # Ensure project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Form
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from database.db import init_db, get_all_users, get_user_by_email, create_user, reset_password, disable_user, get_action_log
+from config import config
+from agent.llm_wrapper import LLMWrapper
+from agent.browser_controller import BrowserController
+from agent.agent import OpsPilotAgent
+
+logger = logging.getLogger("opspilot.admin")
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 # ── Lifespan ────────────────────────────────────────────────────────────────
 
@@ -155,4 +167,151 @@ async def logs_page(request: Request):
     return templates.TemplateResponse("logs.html", {
         "request": request,
         "logs": logs,
+    })
+
+
+def get_llm() -> LLMWrapper:
+    """Initialize the LLM wrapper based on config."""
+    provider = config.LLM_PROVIDER
+
+    if provider == "openai":
+        api_key = config.OPENAI_API_KEY
+        model = config.OPENAI_MODEL
+        if not api_key or api_key.startswith("sk-your"):
+            raise ValueError("OPENAI_API_KEY is not set. Please configure it in .env.")
+    elif provider == "anthropic":
+        api_key = config.ANTHROPIC_API_KEY
+        model = config.ANTHROPIC_MODEL
+        if not api_key or api_key.startswith("sk-ant-your"):
+            raise ValueError("ANTHROPIC_API_KEY is not set. Please configure it in .env.")
+    else:
+        raise ValueError(f"Unknown LLM provider: '{provider}'")
+
+    return LLMWrapper(provider=provider, api_key=api_key, model=model)
+
+
+async def _execute_agent_tasks_async(tasks: list[str], use_headless: bool) -> list[dict]:
+    """Execute tasks through one browser session and return per-task results."""
+    llm = get_llm()
+    browser = BrowserController()
+    results = []
+
+    try:
+        await browser.start(headless=use_headless)
+        agent = OpsPilotAgent(
+            llm=llm,
+            browser=browser,
+            admin_url=config.ADMIN_PANEL_URL,
+            max_iterations=config.AGENT_MAX_ITERATIONS,
+        )
+
+        for task in tasks:
+            result = await agent.execute_task(task)
+            results.append({
+                "task": task,
+                "success": bool(result.get("success")),
+                "message": result.get("message", "No message"),
+                "iterations": result.get("iterations", 0),
+            })
+    finally:
+        await browser.stop()
+
+    return results
+
+
+def _execute_agent_tasks_sync(tasks: list[str], use_headless: bool) -> list[dict]:
+    """
+    Run async Playwright execution in a dedicated loop.
+    On Windows, force a Proactor loop because Playwright needs subprocess support.
+    """
+    if sys.platform == "win32":
+        loop = asyncio.ProactorEventLoop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(_execute_agent_tasks_async(tasks, use_headless))
+        finally:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+            asyncio.set_event_loop(None)
+
+    return asyncio.run(_execute_agent_tasks_async(tasks, use_headless))
+
+
+@app.get("/agent-tasks", response_class=HTMLResponse)
+async def agent_tasks_page(request: Request, message: str = "", msg_type: str = ""):
+    """Display the agent task runner page."""
+    return templates.TemplateResponse("agent_tasks.html", {
+        "request": request,
+        "message": message,
+        "msg_type": msg_type,
+        "task_input": "",
+        "results": [],
+        "executed_count": 0,
+        "headless": config.AGENT_HEADLESS,
+    })
+
+
+@app.post("/agent-tasks", response_class=HTMLResponse)
+async def run_agent_tasks(
+    request: Request,
+    task_input: str = Form(...),
+    headless: str = Form("false"),
+):
+    """Execute one or more natural-language tasks via the autonomous agent."""
+    tasks = [line.strip() for line in task_input.splitlines() if line.strip()]
+    use_headless = headless.lower() == "true"
+
+    if not tasks:
+        return templates.TemplateResponse("agent_tasks.html", {
+            "request": request,
+            "message": "Please enter at least one task.",
+            "msg_type": "error",
+            "task_input": task_input,
+            "results": [],
+            "executed_count": 0,
+            "headless": use_headless,
+        })
+
+    try:
+        results = await run_in_threadpool(_execute_agent_tasks_sync, tasks, use_headless)
+    except ValueError as e:
+        return templates.TemplateResponse("agent_tasks.html", {
+            "request": request,
+            "message": str(e),
+            "msg_type": "error",
+            "task_input": task_input,
+            "results": [],
+            "executed_count": 0,
+            "headless": use_headless,
+        })
+
+    except Exception as e:
+        logger.exception("Agent task execution failed")
+        results = [{
+            "task": "System",
+            "success": False,
+            "message": f"Execution failed: {e}",
+            "iterations": 0,
+        }]
+
+    success_count = sum(1 for r in results if r["success"])
+    total_count = len(results)
+    if success_count == total_count:
+        message = f"All {total_count} task(s) completed successfully."
+        msg_type = "success"
+    elif success_count == 0:
+        message = "No tasks completed successfully."
+        msg_type = "error"
+    else:
+        message = f"Completed {success_count} of {total_count} task(s)."
+        msg_type = "error"
+
+    return templates.TemplateResponse("agent_tasks.html", {
+        "request": request,
+        "message": message,
+        "msg_type": msg_type,
+        "task_input": task_input,
+        "results": results,
+        "executed_count": total_count,
+        "headless": use_headless,
     })

@@ -141,6 +141,16 @@ Then type tasks at the `opspilot>` prompt.
 python run_agent.py --headless --task "Create user test@company.com as Employee"
 ```
 
+### Step 3: Run Tasks from the Admin UI
+
+Open **Agent Tasks** in the top navigation (`/agent-tasks`), then:
+
+1. Enter one natural-language task per line
+2. Choose visible or headless browser mode
+3. Click **Run Tasks**
+
+The page executes tasks sequentially and shows per-task status, message, and iteration count.
+
 ---
 
 ## 📁 Project Structure
@@ -156,7 +166,8 @@ Autonomous-IT-Admin-Agent/
 │       ├── base.html            # Base layout template
 │       ├── users.html           # Users listing page
 │       ├── create_user.html     # Create user form
-│       └── logs.html            # Action log viewer
+│       ├── logs.html            # Action log viewer
+│       └── agent_tasks.html     # Agent task runner UI
 │
 ├── agent/                       # AI Agent
 │   ├── agent.py                 # Core agent loop (observe→decide→act)

@@ -5,6 +5,7 @@ Parses natural language into structured intents and generates step-by-step plans
 
 import json
 import logging
+import re
 from agent.llm_wrapper import LLMWrapper
 
 logger = logging.getLogger("opspilot.planner")
@@ -102,7 +103,8 @@ class Planner:
             {"role": "user", "content": user_input},
         ]
 
-        intent = self.llm.chat_json(messages)
+        raw_intent = self.llm.chat_json(messages)
+        intent = self._normalize_intent(raw_intent, user_input)
         logger.info(f"🎯 Intent parsed: {json.dumps(intent, indent=2)}")
         return intent
 
@@ -141,3 +143,86 @@ class Planner:
             logger.info(f"   {i}. {step}")
 
         return plan
+
+    def _normalize_intent(self, intent: dict, user_input: str) -> dict:
+        """Normalize and backfill intent fields so downstream steps always have required values."""
+        if not isinstance(intent, dict):
+            raise ValueError("Intent must be a JSON object.")
+
+        normalized = dict(intent)
+        action = str(normalized.get("action", "")).strip().lower()
+
+        if not action:
+            text = user_input.lower()
+            if "create" in text and "user" in text:
+                action = "create_user"
+            elif "reset" in text and "password" in text:
+                action = "reset_password"
+            elif "disable" in text and "user" in text:
+                action = "disable_user"
+            elif "if" in text and "exists" in text and "create" in text:
+                action = "ensure_user"
+
+        normalized["action"] = action
+
+        email = self._extract_email(user_input) or str(normalized.get("email", "")).strip().lower()
+        name = str(normalized.get("name", "")).strip() or self._extract_name(user_input)
+        role = str(normalized.get("role", "")).strip() or "Employee"
+        role = "Admin" if role.lower() == "admin" else "Employee"
+
+        if action in ("create_user", "ensure_user"):
+            if not email and name:
+                first_name = name.split()[0].lower()
+                email = f"{first_name}@company.com"
+            if not name and email:
+                name = self._name_from_email(email)
+            if not email or not name:
+                raise ValueError("Could not infer required user details (name/email) for user creation.")
+            normalized["email"] = email.lower()
+            normalized["name"] = name
+            normalized["role"] = role
+            return normalized
+
+        if action in ("reset_password", "disable_user"):
+            if not email and name:
+                first_name = name.split()[0].lower()
+                email = f"{first_name}@company.com"
+            if not email:
+                raise ValueError("Could not infer user email for this action.")
+            normalized["email"] = email.lower()
+            return normalized
+
+        if action:
+            return normalized
+
+        raise ValueError("Could not determine requested action.")
+
+    @staticmethod
+    def _extract_email(text: str) -> str:
+        match = re.search(r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b", text)
+        return match.group(1).lower() if match else ""
+
+    @staticmethod
+    def _extract_name(text: str) -> str:
+        lower_text = text.lower()
+        patterns = [
+            r"\bnamed\s+([a-z][a-z\s'.-]*)$",
+            r"\bname\s+is\s+([a-z][a-z\s'.-]*)$",
+            r"\buser\s+named\s+([a-z][a-z\s'.-]*)$",
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, lower_text)
+            if match:
+                raw_name = match.group(1).strip(" .,!?:;")
+                if raw_name:
+                    return " ".join(part.capitalize() for part in raw_name.split())
+        return ""
+
+    @staticmethod
+    def _name_from_email(email: str) -> str:
+        local_part = email.split("@", 1)[0]
+        tokens = re.split(r"[._-]+", local_part)
+        tokens = [t for t in tokens if t]
+        if not tokens:
+            return "Unknown User"
+        return " ".join(token.capitalize() for token in tokens)

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}Agent Tasks — OpsPilot Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="page-header-left">
+        <h1 data-testid="page-title">Agent Task Runner</h1>
+        <p class="page-subtitle">Enter one task per line. Tasks run sequentially in the same agent session.</p>
+    </div>
+</div>
+
+<div class="form-card task-runner-card">
+    <form method="post" action="/agent-tasks" class="create-form" data-testid="agent-task-form" id="agent-task-form">
+        <div class="form-group">
+            <label for="task_input" class="form-label">Tasks</label>
+            <textarea
+                id="task_input"
+                name="task_input"
+                class="form-input task-textarea"
+                rows="8"
+                placeholder="Reset password for john@company.com&#10;Disable user mark@company.com"
+                required
+                data-testid="task-input"
+            >{{ task_input }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="headless" class="form-label">Execution Mode</label>
+            <select id="headless" name="headless" class="form-input form-select" data-testid="task-headless-select">
+                <option value="false" {% if not headless %}selected{% endif %}>Visible browser</option>
+                <option value="true" {% if headless %}selected{% endif %}>Headless browser</option>
+            </select>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-lg" data-testid="run-task-btn">
+                ▶ Run Tasks
+            </button>
+        </div>
+    </form>
+</div>
+
+{% if executed_count > 0 %}
+<div class="table-wrapper results-wrapper">
+    <table class="data-table" data-testid="task-results-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Task</th>
+                <th>Status</th>
+                <th>Message</th>
+                <th>Iterations</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in results %}
+            <tr class="table-row" data-testid="task-result-{{ loop.index }}">
+                <td>{{ loop.index }}</td>
+                <td>{{ item.task }}</td>
+                <td>
+                    {% if item.success %}
+                    <span class="badge badge-task-success">Success</span>
+                    {% else %}
+                    <span class="badge badge-task-failure">Failed</span>
+                    {% endif %}
+                </td>
+                <td>{{ item.message }}</td>
+                <td>{{ item.iterations }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+{% endblock %}

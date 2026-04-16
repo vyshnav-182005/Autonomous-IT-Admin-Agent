@@ -6,11 +6,15 @@ Starts the FastAPI admin panel on the configured port.
 import uvicorn
 import sys
 import os
+import asyncio
 
 # Ensure project root is on the path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from config import config
+
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 
 def main():
