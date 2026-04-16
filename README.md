@@ -42,8 +42,8 @@ An AI agent that takes natural language IT support requests and executes them by
 │ OBSERVE │────►│ DECIDE  │────►│   ACT   │──┐
 │ (Page)  │     │ (LLM)   │     │(Browser)│  │
 └─────────┘     └─────────┘     └─────────┘  │
-     ▲                                        │
-     └────────────────────────────────────────┘
+     ▲                                       │
+     └───────────────────────────────────────┘
                     Repeat until done
 ```
 
