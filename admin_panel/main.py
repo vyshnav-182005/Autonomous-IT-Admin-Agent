@@ -17,7 +17,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from database.db import init_db, get_all_users, get_user_by_email, create_user, reset_password, disable_user, get_action_log
+from database.db import init_db, get_all_users, get_user_by_email, create_user, reset_password, disable_user, delete_user, get_action_log
 from config import config
 from agent.llm_wrapper import LLMWrapper
 from agent.browser_controller import BrowserController
@@ -151,6 +151,22 @@ async def handle_disable_user(user_id: int):
         user = await disable_user(user_id)
         return RedirectResponse(
             url=f"/users?message=User+'{user['name']}'+has+been+disabled.&msg_type=success",
+            status_code=302,
+        )
+    except ValueError as e:
+        return RedirectResponse(
+            url=f"/users?message={str(e)}&msg_type=error",
+            status_code=302,
+        )
+
+
+@app.post("/delete-user/{user_id}")
+async def handle_delete_user(user_id: int):
+    """Handle permanent deletion of a user account."""
+    try:
+        user = await delete_user(user_id)
+        return RedirectResponse(
+            url=f"/users?message=User+'{user['name']}'+has+been+deleted.&msg_type=success",
             status_code=302,
         )
     except ValueError as e:

@@ -16,7 +16,7 @@ logger = logging.getLogger("opspilot.agent")
 
 # ── Agent System Prompt ─────────────────────────────────────────
 
-AGENT_SYSTEM_PROMPT = """You are an autonomous IT admin agent controlling a web browser. You interact with an IT admin panel to complete tasks like resetting passwords, creating users, and disabling accounts.
+AGENT_SYSTEM_PROMPT = """You are an autonomous IT admin agent controlling a web browser. You interact with an IT admin panel to complete tasks like resetting passwords, creating users, disabling accounts, and deleting users.
 
 You receive:
 1. The current GOAL (what you need to accomplish)
@@ -38,6 +38,7 @@ You must respond with ONLY a JSON object describing your next action. Available 
 3. Click a user-row action by email + button text:
    {"action": "row_action", "email": "john@company.com", "button": "Reset Password"}
    {"action": "row_action", "email": "mark@company.com", "button": "Disable"}
+   {"action": "row_action", "email": "mark@company.com", "button": "Delete"}
 
 4. Fill an input field by field label/name:
    {"action": "fill", "target": "Full Name", "value": "John Doe"}
@@ -57,11 +58,11 @@ You must respond with ONLY a JSON object describing your next action. Available 
 Rules:
 - Respond with ONLY a JSON object. No extra text.
 - Interact like a human: use visible labels, button text, and row context (email text).
-- For reset_password/disable_user: navigate to /users, search for the user, then click the appropriate button.
+- For reset_password/disable_user/delete_user: navigate to /users, search for the user, then click the appropriate button.
 - For create_user: navigate to /create-user, fill the form, and submit.
-- After clicking a destructive button (reset/disable), a confirmation modal will appear — you must confirm it.
+- After clicking a destructive button (reset/disable/delete), a confirmation modal will appear — you must confirm it.
 - After form submission or button click, check for flash messages to verify success.
-- If a flash message contains "success" or "created" or "reset" or "disabled", the task is done.
+- If a flash message contains "success" or "created" or "reset" or "disabled" or "deleted", the task is done.
 - If the user is not found, report failure.
 - Take the most direct path to complete the task.
 """
@@ -304,6 +305,8 @@ Based on the current state and goal, what is your next action? Respond with ONLY
             return f"Create a new user: name='{name}', email='{email}', role='{role}'"
         elif action == "disable_user":
             return f"Disable the user account with email '{email}'"
+        elif action == "delete_user":
+            return f"Permanently delete the user account with email '{email}'"
         elif action == "ensure_user":
             return f"If user '{email}' exists, reset their password. Otherwise, create the user."
         else:

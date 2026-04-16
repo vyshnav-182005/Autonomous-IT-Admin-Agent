@@ -228,7 +228,7 @@ class BrowserController:
             selector = "input[name='name']"
         elif "email" in field_key:
             selector = "input[name='email']"
-        elif "search" in field_key:
+        elif "search" in field_key or field_key == "q":
             selector = "input[name='q']"
         else:
             selector = f"input[placeholder*='{field}']"

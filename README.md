@@ -56,6 +56,7 @@ An AI agent that takes natural language IT support requests and executes them by
 | 🔑 Reset Password | `"Reset password for john@company.com"` |
 | ➕ Create User | `"Create a new user jane@company.com as admin"` |
 | 🚫 Disable User | `"Disable user mark@company.com"` |
+| 🗑️ Delete User | `"Delete user mark@company.com"` |
 | 🔄 Smart (Bonus) | `"If sarah@company.com exists, reset password, otherwise create her"` |
 
 ---

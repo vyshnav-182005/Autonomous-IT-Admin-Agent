@@ -196,6 +196,28 @@ async def disable_user(user_id: int) -> dict:
         await db.close()
 
 
+async def delete_user(user_id: int) -> dict:
+    """
+    Permanently delete a user account from the database.
+    Returns the deleted user dict.
+    """
+    user = await get_user_by_id(user_id)
+    if not user:
+        raise ValueError(f"User with ID {user_id} not found.")
+
+    db = await get_db()
+    try:
+        await db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        await _log_action(
+            db, "delete_user", user["email"],
+            f"Deleted user account for '{user['name']}'"
+        )
+        await db.commit()
+        return user
+    finally:
+        await db.close()
+
+
 async def get_action_log() -> list[dict]:
     """Get all action log entries, most recent first."""
     db = await get_db()

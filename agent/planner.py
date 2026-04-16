@@ -30,7 +30,12 @@ Supported actions and their required fields:
    Required: email
    Example: {"action": "disable_user", "email": "mark@company.com"}
 
-4. ensure_user — Check if user exists; if yes reset password, if not create them
+4. delete_user — Permanently delete a user's account
+   Required: email
+   Example: {"action": "delete_user", "email": "mark@company.com"}
+   Notes: "remove user" should map to this action.
+
+5. ensure_user — Check if user exists; if yes reset password, if not create them
    Required: email, name (optional), role (optional, default Employee)
    Example: {"action": "ensure_user", "email": "sarah@company.com", "name": "Sarah Connor", "role": "Employee"}
 
@@ -39,6 +44,8 @@ Rules:
 - For create_user, if no name is given, infer from the email prefix.
 - For create_user, if no role is given, default to "Employee".
 - If the request says something like "if user exists, reset password, otherwise create", use "ensure_user".
+- Treat "remove/delete user" as "delete_user" (hard delete).
+- Treat "deactivate/disable user" as "disable_user" (soft disable).
 - Always lowercase the email.
 - ONLY return the JSON object, nothing else.
 """
@@ -66,6 +73,14 @@ PLAN_TEMPLATES = {
         "Search for user with email '{email}'",
         "Locate the user row for '{email}'",
         "Click the 'Disable' button for that user",
+        "Handle confirmation dialog if present",
+        "Verify success message appears",
+    ],
+    "delete_user": [
+        "Navigate to the users page",
+        "Search for user with email '{email}'",
+        "Locate the user row for '{email}'",
+        "Click the 'Delete' button for that user",
         "Handle confirmation dialog if present",
         "Verify success message appears",
     ],
@@ -151,6 +166,11 @@ class Planner:
 
         normalized = dict(intent)
         action = str(normalized.get("action", "")).strip().lower()
+        action_aliases = {
+            "remove_user": "delete_user",
+            "deactivate_user": "disable_user",
+        }
+        action = action_aliases.get(action, action)
 
         if not action:
             text = user_input.lower()
@@ -158,7 +178,9 @@ class Planner:
                 action = "create_user"
             elif "reset" in text and "password" in text:
                 action = "reset_password"
-            elif "disable" in text and "user" in text:
+            elif (("delete" in text or "remove" in text) and "user" in text):
+                action = "delete_user"
+            elif (("disable" in text or "deactivate" in text) and "user" in text):
                 action = "disable_user"
             elif "if" in text and "exists" in text and "create" in text:
                 action = "ensure_user"
@@ -183,7 +205,7 @@ class Planner:
             normalized["role"] = role
             return normalized
 
-        if action in ("reset_password", "disable_user"):
+        if action in ("reset_password", "disable_user", "delete_user"):
             if not email and name:
                 first_name = name.split()[0].lower()
                 email = f"{first_name}@company.com"

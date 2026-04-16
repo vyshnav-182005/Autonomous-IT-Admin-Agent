@@ -87,7 +87,27 @@
                                 🚫 Disable
                             </button>
                         </form>
+                        <form method="post" action="/delete-user/{{ user.id }}" class="inline-form">
+                            <button
+                                type="submit"
+                                class="btn btn-sm btn-danger"
+                                data-testid="delete-btn-{{ user.email }}"
+                                data-confirm="Are you sure you want to permanently delete {{ user.name }}? This action cannot be undone."
+                            >
+                                🗑️ Delete
+                            </button>
+                        </form>
                         {% else %}
+                        <form method="post" action="/delete-user/{{ user.id }}" class="inline-form">
+                            <button
+                                type="submit"
+                                class="btn btn-sm btn-danger"
+                                data-testid="delete-btn-{{ user.email }}"
+                                data-confirm="Are you sure you want to permanently delete {{ user.name }}? This action cannot be undone."
+                            >
+                                🗑️ Delete
+                            </button>
+                        </form>
                         <span class="btn btn-sm btn-disabled" data-testid="disabled-label-{{ user.email }}">Disabled</span>
                         {% endif %}
                     </td>
