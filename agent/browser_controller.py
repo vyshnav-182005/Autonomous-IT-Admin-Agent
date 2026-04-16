@@ -6,6 +6,7 @@ All agent actions are performed through this controller — no direct API calls.
 
 import asyncio
 import logging
+import re
 from typing import Optional
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page, Playwright
 
@@ -102,30 +103,30 @@ class BrowserController:
         }
 
         # Flash messages
-        flash = await self.page.query_selector("[data-testid='flash-message']")
+        flash = await self.page.query_selector(".flash-message")
         if flash:
             snapshot["flash_message"] = await flash.inner_text()
 
-        # Table data
-        rows = await self.page.query_selector_all("[data-testid^='user-row-']")
+        # Table data (human-readable extraction, no test-id dependency)
+        rows = await self.page.query_selector_all("table tbody tr")
         if rows:
             users = []
             for row in rows:
-                test_id = await row.get_attribute("data-testid")
-                email = test_id.replace("user-row-", "") if test_id else ""
                 cells = await row.query_selector_all("td")
                 if len(cells) >= 4:
                     name_text = await cells[0].inner_text()
+                    email_text = await cells[1].inner_text()
                     role_text = await cells[2].inner_text()
                     status_text = await cells[3].inner_text()
                     users.append({
-                        "email": email,
-                        "name": name_text.strip(),
+                        "email": email_text.strip(),
+                        "name": name_text.strip().split("\n")[-1].strip(),
                         "role": role_text.strip(),
                         "status": status_text.strip(),
                     })
-            snapshot["users_table"] = users
-            snapshot["user_count"] = len(users)
+            if users:
+                snapshot["users_table"] = users
+                snapshot["user_count"] = len(users)
 
         # Form fields
         forms = await self.page.query_selector_all("form")
@@ -133,33 +134,34 @@ class BrowserController:
             form_info = []
             for form in forms:
                 action = await form.get_attribute("action") or ""
-                test_id = await form.get_attribute("data-testid") or ""
+                labels = await form.query_selector_all("label")
+                label_texts = [((await label.inner_text()).strip()) for label in labels]
                 inputs = await form.query_selector_all("input, select")
                 fields = []
                 for inp in inputs:
                     inp_type = await inp.get_attribute("type") or "text"
                     inp_name = await inp.get_attribute("name") or ""
-                    inp_testid = await inp.get_attribute("data-testid") or ""
+                    placeholder = await inp.get_attribute("placeholder") or ""
                     if inp_name and inp_type != "hidden":
-                        fields.append({"name": inp_name, "type": inp_type, "testid": inp_testid})
-                if fields or test_id:
-                    form_info.append({"action": action, "testid": test_id, "fields": fields})
+                        fields.append({"name": inp_name, "type": inp_type, "placeholder": placeholder})
+                if fields or label_texts:
+                    form_info.append({"action": action, "labels": label_texts, "fields": fields})
             snapshot["forms"] = form_info
 
-        # Buttons
-        buttons = await self.page.query_selector_all("button[data-testid]")
+        # Buttons and links by visible text
+        buttons = await self.page.query_selector_all("button, a.btn")
         btn_list = []
         for btn in buttons:
-            test_id = await btn.get_attribute("data-testid") or ""
             text = await btn.inner_text()
             disabled = await btn.is_disabled()
-            if test_id:
-                btn_list.append({"testid": test_id, "text": text.strip(), "disabled": disabled})
+            normalized = re.sub(r"\s+", " ", text).strip()
+            if normalized:
+                btn_list.append({"text": normalized, "disabled": disabled})
         if btn_list:
             snapshot["buttons"] = btn_list
 
         # Confirmation modal
-        modal = await self.page.query_selector("[data-testid='confirm-modal']")
+        modal = await self.page.query_selector(".modal-overlay")
         if modal:
             snapshot["confirmation_modal_visible"] = True
 
@@ -169,22 +171,30 @@ class BrowserController:
 
     async def click(self, target: str):
         """
-        Click an element by data-testid or text content.
+        Click an element by visible button/link/text.
 
         Args:
-            target: Either a data-testid value or visible text to click.
+            target: Visible text to click.
         """
         logger.info(f"🖱️  Clicking: {target}")
 
-        # Try by data-testid first
-        element = await self.page.query_selector(f"[data-testid='{target}']")
-        if element:
-            await element.scroll_into_view_if_needed()
-            await element.click()
-            await asyncio.sleep(0.3)  # Small delay for UI response
+        # Try button by accessible name
+        try:
+            await self.page.get_by_role("button", name=target, exact=False).first.click()
+            await asyncio.sleep(0.3)
             return
+        except Exception:
+            pass
 
-        # Try by text
+        # Try link by accessible name
+        try:
+            await self.page.get_by_role("link", name=target, exact=False).first.click()
+            await asyncio.sleep(0.3)
+            return
+        except Exception:
+            pass
+
+        # Fallback by visible text
         try:
             await self.page.get_by_text(target, exact=False).first.click()
             await asyncio.sleep(0.3)
@@ -192,65 +202,108 @@ class BrowserController:
         except Exception:
             pass
 
-        # Try by role
+        raise ValueError(f"Could not find element to click: '{target}'")
+
+    async def fill(self, field: str, value: str):
+        """
+        Fill an input field by semantic field description (label/name/placeholder).
+
+        Args:
+            field: field descriptor such as "Name", "Email", or "Search".
+            value: Text to type into the field.
+        """
+        logger.info(f"⌨️  Filling '{field}' with: {value}")
+
+        # Try associated label first
         try:
-            await self.page.get_by_role("button", name=target).click()
-            await asyncio.sleep(0.3)
+            locator = self.page.get_by_label(field, exact=False).first
+            await locator.fill(value)
+            await asyncio.sleep(0.15)
             return
         except Exception:
             pass
 
-        raise ValueError(f"Could not find element to click: '{target}'")
+        field_key = field.strip().lower()
+        if "name" in field_key:
+            selector = "input[name='name']"
+        elif "email" in field_key:
+            selector = "input[name='email']"
+        elif "search" in field_key:
+            selector = "input[name='q']"
+        else:
+            selector = f"input[placeholder*='{field}']"
 
-    async def fill(self, target: str, value: str):
-        """
-        Fill an input field by data-testid.
-
-        Args:
-            target: data-testid of the input element.
-            value: Text to type into the field.
-        """
-        logger.info(f"⌨️  Filling '{target}' with: {value}")
-        element = await self.page.query_selector(f"[data-testid='{target}']")
+        element = await self.page.query_selector(selector)
         if not element:
-            raise ValueError(f"Could not find input with testid: '{target}'")
-        
+            raise ValueError(f"Could not find input field: '{field}'")
+
         await element.scroll_into_view_if_needed()
         await element.fill(value)
         await asyncio.sleep(0.15)
 
-    async def select_option(self, target: str, value: str):
+    async def select_option(self, field: str, value: str):
         """
-        Select an option from a dropdown by data-testid.
+        Select an option from a dropdown by label/name.
 
         Args:
-            target: data-testid of the select element.
+            field: select field descriptor, e.g. "Role".
             value: The option value to select.
         """
-        logger.info(f"📋 Selecting '{value}' in '{target}'")
-        await self.page.select_option(f"[data-testid='{target}']", value=value)
+        logger.info(f"📋 Selecting '{value}' in '{field}'")
+
+        try:
+            locator = self.page.get_by_label(field, exact=False).first
+            await locator.select_option(value=value)
+            await asyncio.sleep(0.15)
+            return
+        except Exception:
+            pass
+
+        field_key = field.strip().lower()
+        selector = "select[name='role']" if "role" in field_key else "select"
+        element = await self.page.query_selector(selector)
+        if not element:
+            raise ValueError(f"Could not find select field: '{field}'")
+
+        await element.select_option(value=value)
         await asyncio.sleep(0.15)
 
-    async def submit_form(self, target: str):
+    async def submit_form(self, button_text: str):
         """
-        Submit a form by clicking its submit button (by data-testid).
+        Submit a form by clicking a visible submit button.
 
         Args:
-            target: data-testid of the submit button.
+            button_text: Visible text on submit button.
         """
-        logger.info(f"📨 Submitting form via: {target}")
-        await self.click(target)
+        logger.info(f"📨 Submitting form via: {button_text}")
+        await self.click(button_text)
         await self.page.wait_for_load_state("networkidle")
 
     async def click_confirm_modal(self):
         """Click the confirm button in a confirmation modal."""
         logger.info("✅ Confirming modal dialog")
-        modal_confirm = await self.page.query_selector("[data-testid='modal-confirm-btn']")
-        if modal_confirm:
-            await modal_confirm.click()
+        try:
+            await self.page.get_by_role("button", name="Confirm", exact=False).first.click()
             await self.page.wait_for_load_state("networkidle")
-        else:
+        except Exception:
             logger.warning("No confirmation modal found")
+
+    async def click_user_row_action(self, email: str, button_text: str):
+        """
+        Click an action button inside a specific user row, identified by email text.
+        This mimics how a human locates a row then clicks its action.
+        """
+        logger.info(f"🧭 Row action: email='{email}', button='{button_text}'")
+        row = self.page.locator("table tbody tr").filter(has=self.page.get_by_text(email, exact=True)).first
+        if await row.count() == 0:
+            raise ValueError(f"Could not find user row for email: '{email}'")
+
+        button = row.get_by_role("button", name=button_text, exact=False).first
+        if await button.count() == 0:
+            raise ValueError(f"Could not find '{button_text}' button for '{email}'")
+
+        await button.click()
+        await asyncio.sleep(0.3)
 
     # ── Waiting & Verification ────────────────────────────────────
 

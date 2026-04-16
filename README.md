@@ -198,7 +198,7 @@ The agent produces detailed, color-coded logs at every stage:
 🎯 Intent: {"action": "reset_password", "email": "john@company.com"}
 📋 Plan: 1) Navigate to users page  2) Search for user  3) Click reset
 👁️ Observing: URL=/users, 5 users visible
-🖱️ Action: Clicking 'reset-btn-john@company.com'
+🖱️ Action: Locate row 'john@company.com' and click "Reset Password"
 ✅ Result: Password reset for 'John Doe'. Temporary password sent.
 ```
 
@@ -208,7 +208,7 @@ The agent produces detailed, color-coded logs at every stage:
 
 1. **Browser-first**: The agent NEVER calls backend APIs directly. All actions go through the browser, simulating a real human operator.
 
-2. **data-testid attributes**: Every interactive element has a `data-testid` for reliable element targeting by the agent.
+2. **Human-style browser interactions**: The agent operates via visible labels, button text, and table-row context (e.g., find user by email then click "Reset Password"), without direct API shortcuts.
 
 3. **LLM-driven decisions**: The agent uses an LLM at two points:
    - **Intent parsing**: Convert natural language → structured intent

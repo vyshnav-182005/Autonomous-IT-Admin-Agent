@@ -30,25 +30,25 @@ You must respond with ONLY a JSON object describing your next action. Available 
    {"action": "navigate", "url": "/users"}
    {"action": "navigate", "url": "/create-user"}
 
-2. Click a button or link (use data-testid values):
-   {"action": "click", "target": "reset-btn-john@company.com"}
-   {"action": "click", "target": "create-user-btn"}
-   {"action": "click", "target": "submit-create-user"}
-   {"action": "click", "target": "disable-btn-mark@company.com"}
+2. Click a button or link by visible text:
+   {"action": "click", "target": "Create User"}
+   {"action": "click", "target": "Search"}
+   {"action": "click", "target": "Run Tasks"}
 
-3. Fill an input field:
-   {"action": "fill", "target": "name-input", "value": "John Doe"}
-   {"action": "fill", "target": "email-input", "value": "john@company.com"}
-   {"action": "fill", "target": "search-input", "value": "john@company.com"}
+3. Click a user-row action by email + button text:
+   {"action": "row_action", "email": "john@company.com", "button": "Reset Password"}
+   {"action": "row_action", "email": "mark@company.com", "button": "Disable"}
 
-4. Select dropdown option:
-   {"action": "select", "target": "role-select", "value": "Admin"}
+4. Fill an input field by field label/name:
+   {"action": "fill", "target": "Full Name", "value": "John Doe"}
+   {"action": "fill", "target": "Email Address", "value": "john@company.com"}
+   {"action": "fill", "target": "Search", "value": "john@company.com"}
 
-5. Confirm a modal dialog:
+5. Select dropdown option:
+   {"action": "select", "target": "Role", "value": "Admin"}
+
+6. Confirm a modal dialog:
    {"action": "confirm_modal"}
-
-6. Submit search:
-   {"action": "click", "target": "search-btn"}
 
 7. Task complete:
    {"action": "done", "result": "success", "message": "Password reset successfully"}
@@ -56,7 +56,7 @@ You must respond with ONLY a JSON object describing your next action. Available 
 
 Rules:
 - Respond with ONLY a JSON object. No extra text.
-- Use data-testid values from the page state whenever possible.
+- Interact like a human: use visible labels, button text, and row context (email text).
 - For reset_password/disable_user: navigate to /users, search for the user, then click the appropriate button.
 - For create_user: navigate to /create-user, fill the form, and submit.
 - After clicking a destructive button (reset/disable), a confirmation modal will appear — you must confirm it.
@@ -256,6 +256,11 @@ Based on the current state and goal, what is your next action? Respond with ONLY
         elif action == "click":
             target = decision.get("target", "")
             await self.browser.click(target)
+
+        elif action == "row_action":
+            email = decision.get("email", "")
+            button = decision.get("button", "")
+            await self.browser.click_user_row_action(email, button)
 
         elif action == "fill":
             target = decision.get("target", "")
